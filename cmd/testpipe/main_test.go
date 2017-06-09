@@ -85,7 +85,7 @@ resource_map:
 
 			taskConfig := `---
 inputs:
-- name: a-resource
+- name: some-resource
 params:
   some_param:
 `
@@ -97,7 +97,7 @@ params:
 jobs:
 - name: some-job
   plan:
-  - get: a-resource
+  - get: some-resource
   - task: some-task
     params:
       some_param: A
