@@ -324,4 +324,29 @@ jobs:
 			Eventually(session).Should(gexec.Exit(1))
 		})
 	})
+
+	Context("when a task is configured with a file but no config is given", func() {
+		BeforeEach(func() {
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - task: some-task
+    file: a-resource/task.yml
+`)
+
+			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits successfully", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session.Err).Should(gbytes.Say("failed to load a-resource/task.yml; no config provided for resource"))
+
+			Eventually(session).Should(gexec.Exit(1))
+		})
+	})
 })

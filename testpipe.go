@@ -109,24 +109,26 @@ func (t *TestPipe) canonicalTask(task *atc.PlanConfig) (*atc.PlanConfig, error) 
 		return task, nil
 	}
 
-	newTask := *task
-
 	resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
+	resourcePath, ok := t.config.ResourceMap[resourceRoot]
 
-	if resourcePath, ok := t.config.ResourceMap[resourceRoot]; ok {
-		bs, err := ioutil.ReadFile(filepath.Join(filepath.Dir(resourcePath), task.TaskConfigPath))
-		if err != nil {
-			return nil, err
-		}
-
-		var taskConfig atc.TaskConfig
-		err = yaml.Unmarshal(bs, &taskConfig)
-		if err != nil {
-			return nil, err
-		}
-
-		newTask.TaskConfig = &taskConfig
+	if len(t.config.ResourceMap) == 0 || !ok {
+		return nil, fmt.Errorf("failed to load %s; no config provided for resource", task.TaskConfigPath)
 	}
+
+	bs, err := ioutil.ReadFile(filepath.Join(filepath.Dir(resourcePath), task.TaskConfigPath))
+	if err != nil {
+		return nil, err
+	}
+
+	var taskConfig atc.TaskConfig
+	err = yaml.Unmarshal(bs, &taskConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	newTask := *task
+	newTask.TaskConfig = &taskConfig
 
 	return &newTask, nil
 }
