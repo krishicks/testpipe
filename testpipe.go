@@ -63,22 +63,40 @@ func (t *TestPipe) Run() error {
 	}
 
 	for _, job := range config.Jobs {
-		tasks := allTasksInPlan(&job.Plan)
-		for _, task := range tasks {
-			canonicalTask, err := t.canonicalTask(&task)
-			if err != nil {
-				return err
-			}
+		var resources []string
+		var tasks []atc.PlanConfig
 
-			err = t.testParityOfParams(canonicalTask, job.Name, task.Name())
-			if err != nil {
-				return err
-			}
+		for _, planConfig := range flattenedPlan(&job.Plan) {
+			switch {
+			case planConfig.Get != "":
+				resources = append(resources, planConfig.Get)
 
-			resources := availableResources(&job.Plan)
-			err = t.testPresenceOfRequiredResources(resources, canonicalTask, job.Name)
-			if err != nil {
-				return err
+			case planConfig.Put != "":
+				resources = append(resources, planConfig.Put)
+
+			case planConfig.Task != "":
+				tasks = append(tasks, planConfig)
+
+				canonicalTask, err := t.canonicalTask(&planConfig)
+				if err != nil {
+					return err
+				}
+
+				if canonicalTask.TaskConfig.Outputs != nil {
+					for i := range canonicalTask.TaskConfig.Outputs {
+						resources = append(resources, canonicalTask.TaskConfig.Outputs[i].Name)
+					}
+				}
+
+				err = t.testParityOfParams(canonicalTask, job.Name, canonicalTask.Name())
+				if err != nil {
+					return err
+				}
+
+				err = t.testPresenceOfRequiredResources(resources, canonicalTask, job.Name)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -229,46 +247,22 @@ func (t *TestPipe) testParityOfParams(
 	return nil
 }
 
-func allTasksInPlan(seq *atc.PlanSequence) []atc.PlanConfig {
-	var tasks []atc.PlanConfig
-
-	for _, planConfig := range *seq {
-		switch {
-		case planConfig.Aggregate != nil:
-			tasks = append(tasks, allTasksInPlan(planConfig.Aggregate)...)
-		case planConfig.Do != nil:
-			tasks = append(tasks, allTasksInPlan(planConfig.Do)...)
-		case planConfig.Task != "":
-			tasks = append(tasks, planConfig)
-		case planConfig.Get != "", planConfig.Put != "":
-		default:
-			log.Fatalf("unknown item in plan: %#v", planConfig)
-		}
-	}
-
-	return tasks
-}
-
-func availableResources(seq *atc.PlanSequence) []string {
-	var resources []string
+func flattenedPlan(seq *atc.PlanSequence) []atc.PlanConfig {
+	var flatPlan []atc.PlanConfig
 
 	for _, planConfig := range *seq {
 		if planConfig.Aggregate != nil {
-			resources = append(resources, availableResources(planConfig.Aggregate)...)
+			flatPlan = append(flatPlan, flattenedPlan(planConfig.Aggregate)...)
 		}
 
 		if planConfig.Do != nil {
-			resources = append(resources, availableResources(planConfig.Do)...)
+			flatPlan = append(flatPlan, flattenedPlan(planConfig.Do)...)
 		}
 
-		if planConfig.Get != "" {
-			resources = append(resources, planConfig.Get)
-		}
-
-		if planConfig.Put != "" {
-			resources = append(resources, planConfig.Put)
+		if planConfig.Get != "" || planConfig.Put != "" || planConfig.Task != "" {
+			flatPlan = append(flatPlan, planConfig)
 		}
 	}
 
-	return resources
+	return flatPlan
 }
