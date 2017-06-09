@@ -143,15 +143,13 @@ func (t *TestPipe) testPresenceOfRequiredResources(
 	var missing []string
 OUTER:
 	for _, input := range task.TaskConfig.Inputs {
-		for _, actual := range resources {
-			if input.Name == actual {
+		for _, resource := range resources {
+			if input.Name == resource {
 				continue OUTER
 			}
 
-			for k, v := range task.InputMapping {
-				if k == input.Name && v == actual {
-					continue OUTER
-				}
+			if v, ok := task.InputMapping[input.Name]; ok && v == resource {
+				continue OUTER
 			}
 		}
 
