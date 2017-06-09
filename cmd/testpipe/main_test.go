@@ -109,7 +109,7 @@ jobs:
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("exits with error having printed errors", func() {
+		It("exits with error", func() {
 			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -136,7 +136,7 @@ jobs:
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("exits with error having printed errors", func() {
+		It("exits with error", func() {
 			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
