@@ -265,4 +265,36 @@ jobs:
 			Eventually(session).Should(gexec.Exit(0))
 		})
 	})
+
+	Context("when a task provides as an output the required input of another task but the task is defined downstream", func() {
+		BeforeEach(func() {
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - task: some-task
+    params:
+      some_param: A
+    file: some-resource/task.yml
+  - task: some-downstream-task
+    config:
+      outputs:
+      - name: a-resource
+`)
+
+			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits with error", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session.Err).Should(gbytes.Say("Task invocation is missing resources"))
+			Eventually(session.Err).Should(gbytes.Say("a-resource"))
+
+			Eventually(session).Should(gexec.Exit(1))
+		})
+	})
 })
