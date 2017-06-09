@@ -207,4 +207,34 @@ jobs:
 			Eventually(session).Should(gexec.Exit(0))
 		})
 	})
+
+	Context("when the pipeline defines a task inline", func() {
+		BeforeEach(func() {
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - get: a-resource
+  - task: some-task
+    params:
+      some_param: A
+    config:
+      inputs:
+      - name: a-resource
+      params:
+        some_param:
+`)
+
+			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits successfully", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+		})
+	})
 })

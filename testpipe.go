@@ -65,21 +65,20 @@ func (t *TestPipe) Run() error {
 	for _, job := range config.Jobs {
 		tasks := allTasksInPlan(&job.Plan)
 		for _, task := range tasks {
-			resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
-			if resourcePath, ok := t.config.ResourceMap[resourceRoot]; ok {
-				err = t.testParityOfParams(job.Name, task.Name(), task.Params, task.TaskConfigPath, resourcePath)
-				if err != nil {
-					return err
-				}
+			canonicalTask, err := t.canonicalTask(&task)
+			if err != nil {
+				return err
+			}
 
-				resources := availableResources(&job.Plan)
-				err = t.testPresenceOfRequiredResources(resources, job.Name, task, filepath.Dir(resourcePath))
-				if err != nil {
-					return err
-				}
-			} else {
-				//TODO: Support renamed resources
-				// return fmt.Errorf("path on disk to %s not found in config", task.TaskConfigPath)
+			err = t.testParityOfParams(canonicalTask, job.Name, task.Name())
+			if err != nil {
+				return err
+			}
+
+			resources := availableResources(&job.Plan)
+			err = t.testPresenceOfRequiredResources(resources, canonicalTask, job.Name)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -87,24 +86,45 @@ func (t *TestPipe) Run() error {
 	return nil
 }
 
-func (t *TestPipe) testPresenceOfRequiredResources(
-	resources []string,
-	jobName string,
-	task atc.PlanConfig,
-	root string,
-) error {
-	inputs, err := taskInputConfigs(filepath.Join(root, task.TaskConfigPath))
-	if err != nil {
-		return err
+func (t *TestPipe) canonicalTask(task *atc.PlanConfig) (*atc.PlanConfig, error) {
+	if task.TaskConfigPath == "" {
+		return task, nil
 	}
 
-	if len(inputs) == 0 {
+	newTask := *task
+
+	resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
+
+	if resourcePath, ok := t.config.ResourceMap[resourceRoot]; ok {
+		bs, err := ioutil.ReadFile(filepath.Join(filepath.Dir(resourcePath), task.TaskConfigPath))
+		if err != nil {
+			return nil, err
+		}
+
+		var taskConfig atc.TaskConfig
+		err = yaml.Unmarshal(bs, &taskConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		newTask.TaskConfig = &taskConfig
+	}
+
+	return &newTask, nil
+}
+
+func (t *TestPipe) testPresenceOfRequiredResources(
+	resources []string,
+	task *atc.PlanConfig,
+	jobName string,
+) error {
+	if len(task.TaskConfig.Inputs) == 0 {
 		return nil
 	}
 
 	var missing []string
 OUTER:
-	for _, input := range inputs {
+	for _, input := range task.TaskConfig.Inputs {
 		for _, actual := range resources {
 			if input.Name == actual {
 				continue OUTER
@@ -152,33 +172,21 @@ OUTER:
 }
 
 func (t *TestPipe) testParityOfParams(
+	task *atc.PlanConfig,
 	jobName string,
 	taskName string,
-	taskParams atc.Params,
-	taskConfigPath string,
-	resourcePath string,
 ) error {
-	bs, err := ioutil.ReadFile(filepath.Join(filepath.Dir(resourcePath), taskConfigPath))
-	if err != nil {
-		return err
-	}
-
-	taskConfig := atc.TaskConfig{}
-	err = yaml.Unmarshal(bs, &taskConfig)
-	if err != nil {
-		return err
-	}
 
 	var extras, missing []string
 
-	for k := range taskConfig.Params {
-		if _, ok := taskParams[k]; !ok {
+	for k := range task.TaskConfig.Params {
+		if _, ok := task.Params[k]; !ok {
 			missing = append(missing, k)
 		}
 	}
 
-	for k := range taskParams {
-		if _, ok := taskConfig.Params[k]; !ok {
+	for k := range task.Params {
+		if _, ok := task.TaskConfig.Params[k]; !ok {
 			extras = append(extras, k)
 		}
 	}
@@ -240,28 +248,6 @@ func allTasksInPlan(seq *atc.PlanSequence) []atc.PlanConfig {
 	}
 
 	return tasks
-}
-
-var taskConfigs = map[string]*atc.TaskConfig{}
-
-func taskInputConfigs(path string) ([]atc.TaskInputConfig, error) {
-	taskConfig, ok := taskConfigs[path]
-
-	if !ok {
-		bs, err := ioutil.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open task config file: %s", err)
-		}
-
-		err = yaml.Unmarshal(bs, &taskConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal task config file: %s", err)
-		}
-
-		taskConfigs[path] = taskConfig
-	}
-
-	return taskConfig.Inputs, nil
 }
 
 func availableResources(seq *atc.PlanSequence) []string {
