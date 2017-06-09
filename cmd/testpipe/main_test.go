@@ -32,6 +32,8 @@ var _ = Describe("Main", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		someResourceDir := filepath.Join(resourcesDir, "some-resource")
+		err = os.MkdirAll(someResourceDir, os.ModePerm)
+		Expect(err).NotTo(HaveOccurred())
 
 		testpipeConfig := fmt.Sprintf(`---
 resource_map:
@@ -47,9 +49,6 @@ resource_map:
 		Expect(err).NotTo(HaveOccurred())
 
 		taskPath := filepath.Join(someResourceDir, "task.yml")
-
-		err = os.MkdirAll(filepath.Dir(taskPath), os.ModePerm)
-		Expect(err).NotTo(HaveOccurred())
 
 		taskConfig := `---
 inputs:
