@@ -94,7 +94,7 @@ func (t *TestPipe) Run() error {
 					}
 
 					var path string
-					path, err = taskPath(resources, planConfig.TaskConfigPath, resourceMap)
+					path, err = taskPath(planConfig.TaskConfigPath, resourceMap)
 					if err != nil {
 						return err
 					}
@@ -143,7 +143,6 @@ func (t *TestPipe) Run() error {
 }
 
 func taskPath(
-	resources []string,
 	taskConfigPath string,
 	resourceMap map[string]string,
 ) (string, error) {
