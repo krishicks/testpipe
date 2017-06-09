@@ -66,6 +66,11 @@ func (t *TestPipe) Run() error {
 		var resources []string
 		var tasks []atc.PlanConfig
 
+		resourceMap := make(map[string]string, len(t.config.ResourceMap))
+		for k, v := range t.config.ResourceMap {
+			resourceMap[k] = v
+		}
+
 		for _, planConfig := range flattenedPlan(&job.Plan) {
 			switch {
 			case planConfig.Get != "":
@@ -73,8 +78,8 @@ func (t *TestPipe) Run() error {
 
 				if planConfig.Resource != "" {
 					resources = append(resources, planConfig.Resource)
-					origPath := t.config.ResourceMap[planConfig.Resource]
-					t.config.ResourceMap[planConfig.Get] = origPath
+					origPath := resourceMap[planConfig.Resource]
+					resourceMap[planConfig.Get] = origPath
 				}
 
 			case planConfig.Put != "":
@@ -84,12 +89,12 @@ func (t *TestPipe) Run() error {
 				canonicalTask := &planConfig
 
 				if planConfig.TaskConfigPath != "" {
-					if len(t.config.ResourceMap) == 0 {
+					if len(resourceMap) == 0 {
 						return fmt.Errorf("failed to load %s; no config provided", planConfig.TaskConfigPath)
 					}
 
 					var path string
-					path, err = taskPath(resources, planConfig.TaskConfigPath, t.config.ResourceMap)
+					path, err = taskPath(resources, planConfig.TaskConfigPath, resourceMap)
 					if err != nil {
 						return err
 					}
