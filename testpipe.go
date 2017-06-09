@@ -32,6 +32,13 @@ type ParamsData struct {
 	Missing      []string
 }
 
+type ResourcesData struct {
+	PipelinePath string
+	JobName      string
+	TaskName     string
+	Missing      []string
+}
+
 func New(path string, config Config) *TestPipe {
 	return &TestPipe{
 		path:   path,
@@ -56,10 +63,17 @@ func (t *TestPipe) Run() error {
 	}
 
 	for _, job := range config.Jobs {
-		for _, task := range allTasksInPlan(&job.Plan) {
-			root := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
-			if resourcePath, ok := t.config.ResourceMap[root]; ok {
+		tasks := allTasksInPlan(&job.Plan)
+		for _, task := range tasks {
+			resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
+			if resourcePath, ok := t.config.ResourceMap[resourceRoot]; ok {
 				err = t.testParityOfParams(job.Name, task.Name(), task.Params, task.TaskConfigPath, resourcePath)
+				if err != nil {
+					return err
+				}
+
+				resources := availableResources(&job.Plan)
+				err = t.testPresenceOfRequiredResources(resources, job.Name, task, filepath.Dir(resourcePath))
 				if err != nil {
 					return err
 				}
@@ -68,6 +82,70 @@ func (t *TestPipe) Run() error {
 				// return fmt.Errorf("path on disk to %s not found in config", task.TaskConfigPath)
 			}
 		}
+	}
+
+	return nil
+}
+
+func (t *TestPipe) testPresenceOfRequiredResources(
+	resources []string,
+	jobName string,
+	task atc.PlanConfig,
+	root string,
+) error {
+	inputs, err := taskInputConfigs(filepath.Join(root, task.TaskConfigPath))
+	if err != nil {
+		return err
+	}
+
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	var missing []string
+OUTER:
+	for _, input := range inputs {
+		for _, actual := range resources {
+			if input.Name == actual {
+				continue OUTER
+			}
+
+			for k, v := range task.InputMapping {
+				if k == input.Name && v == actual {
+					continue OUTER
+				}
+			}
+		}
+
+		missing = append(missing, input.Name)
+	}
+
+	if len(missing) > 0 {
+		paramsTemplate := `
+  Pipeline:	{{.PipelinePath}}
+  Job:		{{.JobName}}
+  Task:		{{.TaskName}}
+  {{if .Missing }}
+  Missing resources:
+    {{- range .Missing}}
+    {{.}}
+    {{- end}}
+  {{end -}}
+`
+
+		tmpl := template.Must(template.New("resources").Parse(paramsTemplate))
+		buf := &bytes.Buffer{}
+		data := ResourcesData{
+			PipelinePath: t.path,
+			JobName:      jobName,
+			TaskName:     task.Name(),
+			Missing:      missing,
+		}
+		if err := tmpl.Execute(buf, data); err != nil {
+			log.Fatalf("failed to execute template: %s", err)
+		}
+
+		return fmt.Errorf("Task invocation is missing resources: %s", buf.String())
 	}
 
 	return nil
@@ -162,4 +240,50 @@ func allTasksInPlan(seq *atc.PlanSequence) []atc.PlanConfig {
 	}
 
 	return tasks
+}
+
+var taskConfigs = map[string]*atc.TaskConfig{}
+
+func taskInputConfigs(path string) ([]atc.TaskInputConfig, error) {
+	taskConfig, ok := taskConfigs[path]
+
+	if !ok {
+		bs, err := ioutil.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open task config file: %s", err)
+		}
+
+		err = yaml.Unmarshal(bs, &taskConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task config file: %s", err)
+		}
+
+		taskConfigs[path] = taskConfig
+	}
+
+	return taskConfig.Inputs, nil
+}
+
+func availableResources(seq *atc.PlanSequence) []string {
+	var resources []string
+
+	for _, planConfig := range *seq {
+		if planConfig.Aggregate != nil {
+			resources = append(resources, availableResources(planConfig.Aggregate)...)
+		}
+
+		if planConfig.Do != nil {
+			resources = append(resources, availableResources(planConfig.Do)...)
+		}
+
+		if planConfig.Get != "" {
+			resources = append(resources, planConfig.Get)
+		}
+
+		if planConfig.Put != "" {
+			resources = append(resources, planConfig.Put)
+		}
+	}
+
+	return resources
 }

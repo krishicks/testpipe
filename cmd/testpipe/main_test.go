@@ -52,6 +52,8 @@ resource_map:
 		Expect(err).NotTo(HaveOccurred())
 
 		taskConfig := `---
+inputs:
+- name: a-resource
 params:
   some_param:
 `
@@ -69,7 +71,7 @@ params:
 jobs:
 - name: some-job
   plan:
-  - get: some-resource
+  - get: a-resource
   - task: some-task
     file: some-resource/task.yml
     params:
@@ -98,6 +100,7 @@ jobs:
 jobs:
 - name: some-job
   plan:
+  - get: a-resource
   - task: some-task
     file: some-resource/task.yml
     params:
@@ -127,6 +130,7 @@ jobs:
 jobs:
 - name: some-job
   plan:
+  - get: a-resource
   - task: some-task
     file: some-resource/task.yml
     params: {}
@@ -145,6 +149,62 @@ jobs:
 			Eventually(session.Err).Should(gbytes.Say("some_param"))
 
 			Eventually(session).Should(gexec.Exit(1))
+		})
+	})
+
+	Context("when the pipeline does not specify a resource that a task requires", func() {
+		BeforeEach(func() {
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - task: some-task
+    file: some-resource/task.yml
+    params:
+      some_param: A
+`)
+
+			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits with error", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session.Err).Should(gbytes.Say("Task invocation is missing resources"))
+			Eventually(session.Err).Should(gbytes.Say("a-resource"))
+
+			Eventually(session).Should(gexec.Exit(1))
+		})
+	})
+
+	Context("when the pipeline uses input_mapping to specify a resource that a task requires", func() {
+		BeforeEach(func() {
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - get: some-resource
+  - task: some-task
+    input_mapping:
+      a-resource: some-resource
+    file: some-resource/task.yml
+    params:
+      some_param: A
+`)
+
+			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits successfully", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
 		})
 	})
 })
