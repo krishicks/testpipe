@@ -1,5 +1,6 @@
 # testpipe
-Concourse Pipeline Tester
+
+A utility to lint Concourse pipelines.
 
 ## Current features
 - [x] Ensure parity of params between task config and pipeline config that uses the task
