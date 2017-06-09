@@ -88,7 +88,7 @@ func (t *TestPipe) Run() error {
 					}
 				}
 
-				err = t.testParityOfParams(canonicalTask, job.Name, canonicalTask.Name())
+				err = t.testParityOfParams(canonicalTask, job.Name)
 				if err != nil {
 					return err
 				}
@@ -192,7 +192,6 @@ OUTER:
 func (t *TestPipe) testParityOfParams(
 	task *atc.PlanConfig,
 	jobName string,
-	taskName string,
 ) error {
 	var extras, missing []string
 
@@ -233,7 +232,7 @@ func (t *TestPipe) testParityOfParams(
 		data := ParamsData{
 			PipelinePath: t.path,
 			JobName:      jobName,
-			TaskName:     taskName,
+			TaskName:     task.Name(),
 			Extras:       extras,
 			Missing:      missing,
 		}
