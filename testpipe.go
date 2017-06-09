@@ -148,14 +148,16 @@ func allTasksInPlan(seq *atc.PlanSequence) []atc.PlanConfig {
 	var tasks []atc.PlanConfig
 
 	for _, planConfig := range *seq {
-		if planConfig.Aggregate != nil {
+		switch {
+		case planConfig.Aggregate != nil:
 			tasks = append(tasks, allTasksInPlan(planConfig.Aggregate)...)
-		}
-		if planConfig.Do != nil {
+		case planConfig.Do != nil:
 			tasks = append(tasks, allTasksInPlan(planConfig.Do)...)
-		}
-		if planConfig.Task != "" {
+		case planConfig.Task != "":
 			tasks = append(tasks, planConfig)
+		case planConfig.Get != "", planConfig.Put != "":
+		default:
+			log.Fatalf("unknown item in plan: %#v", planConfig)
 		}
 	}
 
