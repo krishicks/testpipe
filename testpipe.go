@@ -239,36 +239,14 @@ func flattenTask(
 	task *atc.PlanConfig,
 	jobName string,
 ) (*atc.PlanConfig, error) {
-	var result *atc.PlanConfig
-	if task.TaskConfigPath == "" {
-		result = task
-	} else {
-		if len(resourceMap) == 0 {
-			return nil, fmt.Errorf("failed to load %s; no config provided", task.TaskConfigPath)
-		}
+	result := task
 
-		resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
-
-		var path string
-		if resourcePath, ok := resourceMap[resourceRoot]; ok && resourcePath != "" {
-			path = filepath.Join(resourcePath, strings.Replace(task.TaskConfigPath, resourceRoot, "", -1))
-		} else {
-			return nil, fmt.Errorf("failed to find path for task: %s", task.TaskConfigPath)
-		}
-
-		bs, err := ioutil.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open task at %s", path)
-		}
-
-		var taskConfig atc.TaskConfig
-		err = yaml.Unmarshal(bs, &taskConfig)
+	if task.TaskConfigPath != "" {
+		var err error
+		result, err = loadTask(resourceMap, task)
 		if err != nil {
 			return nil, err
 		}
-
-		result = task
-		result.TaskConfig = &taskConfig
 	}
 
 	if result.TaskConfig == nil {
@@ -278,6 +256,40 @@ func flattenTask(
 	if result.TaskConfig.Run.Path == "" {
 		return nil, fmt.Errorf("task %s/%s is missing a path", jobName, task.Name())
 	}
+
+	return result, nil
+}
+
+func loadTask(
+	resourceMap map[string]string,
+	task *atc.PlanConfig,
+) (*atc.PlanConfig, error) {
+	if len(resourceMap) == 0 {
+		return nil, fmt.Errorf("failed to load %s; no config provided", task.TaskConfigPath)
+	}
+
+	resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
+
+	var path string
+	if resourcePath, ok := resourceMap[resourceRoot]; ok && resourcePath != "" {
+		path = filepath.Join(resourcePath, strings.Replace(task.TaskConfigPath, resourceRoot, "", -1))
+	} else {
+		return nil, fmt.Errorf("failed to find path for task: %s", task.TaskConfigPath)
+	}
+
+	bs, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open task at %s", path)
+	}
+
+	var taskConfig atc.TaskConfig
+	err = yaml.Unmarshal(bs, &taskConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	result := task
+	result.TaskConfig = &taskConfig
 
 	return result, nil
 }
