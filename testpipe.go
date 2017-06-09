@@ -93,9 +93,11 @@ func (t *TestPipe) Run() error {
 					return err
 				}
 
-				err = t.testPresenceOfRequiredResources(resources, canonicalTask, job.Name)
-				if err != nil {
-					return err
+				if len(canonicalTask.TaskConfig.Inputs) > 0 {
+					err = t.testPresenceOfRequiredResources(resources, canonicalTask, job.Name)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -138,10 +140,6 @@ func (t *TestPipe) testPresenceOfRequiredResources(
 	task *atc.PlanConfig,
 	jobName string,
 ) error {
-	if len(task.TaskConfig.Inputs) == 0 {
-		return nil
-	}
-
 	var missing []string
 OUTER:
 	for _, input := range task.TaskConfig.Inputs {
