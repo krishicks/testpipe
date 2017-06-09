@@ -101,13 +101,13 @@ func (t *TestPipe) Run() error {
 					}
 				}
 
-				err = t.testParityOfParams(canonicalTask, job.Name)
+				err = testParityOfParams(canonicalTask, job.Name, t.path)
 				if err != nil {
 					return err
 				}
 
 				if len(canonicalTask.TaskConfig.Inputs) > 0 {
-					err = t.testPresenceOfRequiredResources(resources, canonicalTask, job.Name)
+					err = testPresenceOfRequiredResources(resources, canonicalTask, job.Name, t.path)
 					if err != nil {
 						return err
 					}
@@ -125,10 +125,11 @@ func (t *TestPipe) Run() error {
 	return nil
 }
 
-func (t *TestPipe) testPresenceOfRequiredResources(
+func testPresenceOfRequiredResources(
 	resources []string,
 	task *atc.PlanConfig,
 	jobName string,
+	pipelinePath string,
 ) error {
 	var missing []string
 OUTER:
@@ -162,7 +163,7 @@ OUTER:
 		tmpl := template.Must(template.New("resources").Parse(paramsTemplate))
 		buf := &bytes.Buffer{}
 		data := ResourcesData{
-			PipelinePath: t.path,
+			PipelinePath: pipelinePath,
 			JobName:      jobName,
 			TaskName:     task.Name(),
 			Missing:      missing,
@@ -177,9 +178,10 @@ OUTER:
 	return nil
 }
 
-func (t *TestPipe) testParityOfParams(
+func testParityOfParams(
 	task *atc.PlanConfig,
 	jobName string,
+	pipelinePath string,
 ) error {
 	var extras, missing []string
 
@@ -218,7 +220,7 @@ func (t *TestPipe) testParityOfParams(
 		tmpl := template.Must(template.New("params").Parse(paramsTemplate))
 		buf := &bytes.Buffer{}
 		data := ParamsData{
-			PipelinePath: t.path,
+			PipelinePath: pipelinePath,
 			JobName:      jobName,
 			TaskName:     task.Name(),
 			Extras:       extras,
