@@ -71,15 +71,33 @@ func (t *TestPipe) Run() error {
 			case planConfig.Get != "":
 				resources = append(resources, planConfig.Get)
 
+				if planConfig.Resource != "" {
+					resources = append(resources, planConfig.Resource)
+					origPath := t.config.ResourceMap[planConfig.Resource]
+					t.config.ResourceMap[planConfig.Get] = origPath
+				}
+
 			case planConfig.Put != "":
 				resources = append(resources, planConfig.Put)
 
 			case planConfig.Task != "":
-				tasks = append(tasks, planConfig)
+				canonicalTask := &planConfig
 
-				canonicalTask, err := t.canonicalTask(&planConfig)
-				if err != nil {
-					return err
+				if planConfig.TaskConfigPath != "" {
+					if len(t.config.ResourceMap) == 0 {
+						return fmt.Errorf("failed to load %s; no config provided", planConfig.TaskConfigPath)
+					}
+
+					var path string
+					path, err = taskPath(resources, planConfig.TaskConfigPath, t.config.ResourceMap)
+					if err != nil {
+						return err
+					}
+
+					canonicalTask, err = t.loadTaskFromPath(path, &planConfig)
+					if err != nil {
+						return err
+					}
 				}
 
 				if canonicalTask.TaskConfig.Outputs != nil {
@@ -99,6 +117,8 @@ func (t *TestPipe) Run() error {
 						return err
 					}
 				}
+
+				tasks = append(tasks, *canonicalTask)
 			}
 		}
 	}
@@ -106,21 +126,25 @@ func (t *TestPipe) Run() error {
 	return nil
 }
 
-func (t *TestPipe) canonicalTask(task *atc.PlanConfig) (*atc.PlanConfig, error) {
-	if task.TaskConfigPath == "" {
-		return task, nil
+func taskPath(
+	resources []string,
+	taskConfigPath string,
+	resourceMap map[string]string,
+) (string, error) {
+	resourceRoot := strings.Split(taskConfigPath, string(os.PathSeparator))[0]
+
+	if resourcePath, ok := resourceMap[resourceRoot]; ok && resourcePath != "" {
+		path := filepath.Join(resourcePath, strings.Replace(taskConfigPath, resourceRoot, "", -1))
+		return path, nil
 	}
 
-	resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
-	resourcePath, ok := t.config.ResourceMap[resourceRoot]
+	return "", fmt.Errorf("failed to find path for task: %s", taskConfigPath)
+}
 
-	if len(t.config.ResourceMap) == 0 || !ok {
-		return nil, fmt.Errorf("failed to load %s; no config provided for resource", task.TaskConfigPath)
-	}
-
-	bs, err := ioutil.ReadFile(filepath.Join(filepath.Dir(resourcePath), task.TaskConfigPath))
+func (t *TestPipe) loadTaskFromPath(path string, task *atc.PlanConfig) (*atc.PlanConfig, error) {
+	bs, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open task at %s", path)
 	}
 
 	var taskConfig atc.TaskConfig

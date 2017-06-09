@@ -344,7 +344,117 @@ jobs:
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(session.Err).Should(gbytes.Say("failed to load a-resource/task.yml; no config provided for resource"))
+			Eventually(session.Err).Should(gbytes.Say("failed to load a-resource/task.yml; no config provided"))
+
+			Eventually(session).Should(gexec.Exit(1))
+		})
+	})
+
+	Context("when a get renames a resource which is the source of its config", func() {
+		BeforeEach(func() {
+			resourcesDir, err := ioutil.TempDir(tmpDir, "resources")
+			Expect(err).NotTo(HaveOccurred())
+
+			someResourceDir := filepath.Join(resourcesDir, "some-resource")
+			err = os.MkdirAll(someResourceDir, os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+
+			testpipeConfig := fmt.Sprintf(`---
+resource_map:
+  some-resource: %s`, someResourceDir)
+
+			testpipeConfigFile, err := ioutil.TempFile(tmpDir, "testpipe-config.yml")
+			Expect(err).NotTo(HaveOccurred())
+			defer testpipeConfigFile.Close()
+
+			configFilePath = testpipeConfigFile.Name()
+
+			_, err = io.Copy(testpipeConfigFile, strings.NewReader(testpipeConfig))
+			Expect(err).NotTo(HaveOccurred())
+
+			taskPath := filepath.Join(someResourceDir, "task.yml")
+
+			taskConfig := `---
+inputs: []
+params: {}
+`
+
+			err = ioutil.WriteFile(taskPath, []byte(taskConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - get: a-resource
+    resource: some-resource
+  - task: some-task
+    file: a-resource/task.yml
+`)
+
+			err = ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits successfully", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+		})
+	})
+
+	Context("when a get renames a resource which is the source of its config and has invalid config", func() {
+		BeforeEach(func() {
+			resourcesDir, err := ioutil.TempDir(tmpDir, "resources")
+			Expect(err).NotTo(HaveOccurred())
+
+			someResourceDir := filepath.Join(resourcesDir, "some-resource")
+			err = os.MkdirAll(someResourceDir, os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+
+			testpipeConfig := fmt.Sprintf(`---
+resource_map:
+  what-resource: %s`, someResourceDir)
+
+			testpipeConfigFile, err := ioutil.TempFile(tmpDir, "testpipe-config.yml")
+			Expect(err).NotTo(HaveOccurred())
+			defer testpipeConfigFile.Close()
+
+			configFilePath = testpipeConfigFile.Name()
+
+			_, err = io.Copy(testpipeConfigFile, strings.NewReader(testpipeConfig))
+			Expect(err).NotTo(HaveOccurred())
+
+			taskPath := filepath.Join(someResourceDir, "task.yml")
+
+			taskConfig := `---
+inputs: []
+params: {}
+`
+
+			err = ioutil.WriteFile(taskPath, []byte(taskConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - get: a-resource
+    resource: some-resource
+  - task: some-task
+    file: a-resource/task.yml
+`)
+
+			err = ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits with error", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session.Err).Should(gbytes.Say("failed to find path for task: a-resource/task.yml"))
 
 			Eventually(session).Should(gexec.Exit(1))
 		})
