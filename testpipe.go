@@ -59,7 +59,7 @@ func (t *TestPipe) Run() error {
 	var config atc.Config
 	err = yaml.Unmarshal(cleanConfigBytes, &config)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal pipeline at %s: %s", t.path, err)
 	}
 
 	for _, job := range config.Jobs {
