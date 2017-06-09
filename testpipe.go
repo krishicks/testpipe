@@ -105,7 +105,6 @@ func (t *TestPipe) Run() error {
 					return err
 				}
 
-				fmt.Printf("%#v\n", canonicalTask)
 				if canonicalTask.TaskConfig.Outputs != nil {
 					for i := range canonicalTask.TaskConfig.Outputs {
 						resources = append(resources, canonicalTask.TaskConfig.Outputs[i].Name)
