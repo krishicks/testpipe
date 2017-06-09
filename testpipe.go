@@ -176,7 +176,6 @@ func (t *TestPipe) testParityOfParams(
 	jobName string,
 	taskName string,
 ) error {
-
 	var extras, missing []string
 
 	for k := range task.TaskConfig.Params {
