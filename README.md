@@ -7,6 +7,7 @@ Concourse Pipeline Tester
 
 ## Usage
 
+### Setup
 ```
 dir=$(mktemp -d)
 
@@ -20,7 +21,7 @@ jobs:
   - task: a-task
     file: some-resource/task.yml
     params:
-      foo: bar
+      foo: bar # <- extra param the task does not require
 EOF
 
 mkdir -p $dir/some-resource
@@ -28,15 +29,22 @@ mkdir -p $dir/some-resource
 cat > $dir/some-resource/task.yml <<EOF
 ---
 params:
-  baz: quux
+  baz: quux # <- param that the task usage does not specify
 EOF
 
 cat > $dir/config.yml <<EOF
 resource_map:
-  "some-resource": $dir/some-resource
+  some-resource: $dir/some-resource
 EOF
+```
 
+### Execute
+```
 testpipe -p $dir/pipeline.yml -c $dir/config.yml
+```
+
+### Output
+```
 Params do not have parity:
   Pipeline:     /tmp/tmp.xPl0PMmQMa/pipeline.yml
   Job:          a-job
