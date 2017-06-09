@@ -5,6 +5,7 @@ A utility to lint Concourse pipelines.
 ## Current features
 - [x] Ensure parity of params between task config and pipeline config that uses the task
 - [x] Ensure that all task inputs are satisfied
+- [x] Ensure that all tasks have a path to run
 - [ ] Ensure no invalid keys are passed to `get` (`params:` is often forgotten and keys on the `get` are silently ignored)
 
 ## Installation
