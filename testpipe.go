@@ -22,9 +22,11 @@ type Config struct {
 type TestPipe struct {
 	path   string
 	config Config
+	tmpl   *template.Template
 }
 
-type ParamsData struct {
+type TemplateData struct {
+	Type         string
 	PipelinePath string
 	JobName      string
 	TaskName     string
@@ -32,17 +34,29 @@ type ParamsData struct {
 	Missing      []string
 }
 
-type ResourcesData struct {
-	PipelinePath string
-	JobName      string
-	TaskName     string
-	Missing      []string
-}
+const outputTemplate = `
+  Pipeline:	{{.PipelinePath}}
+  Job:		{{.JobName}}
+  Task:		{{.TaskName}}
+  {{if .Extras}}
+  Extra {{.Type}} that should be removed:
+    {{- range .Extras}}
+    {{.}}
+    {{- end}}
+  {{end -}}
+  {{if .Missing }}
+  Missing {{.Type}} that should be added:
+    {{- range .Missing}}
+    {{.}}
+    {{- end}}
+  {{end -}}
+`
 
 func New(path string, config Config) *TestPipe {
 	return &TestPipe{
 		path:   path,
 		config: config,
+		tmpl:   template.Must(template.New("output").Parse(outputTemplate)),
 	}
 }
 
@@ -101,13 +115,13 @@ func (t *TestPipe) Run() error {
 					}
 				}
 
-				err = testParityOfParams(canonicalTask, job.Name, t.path)
+				err = testParityOfParams(canonicalTask, job.Name, t.path, t.tmpl)
 				if err != nil {
 					return err
 				}
 
 				if len(canonicalTask.TaskConfig.Inputs) > 0 {
-					err = testPresenceOfRequiredResources(resources, canonicalTask, job.Name, t.path)
+					err = testPresenceOfRequiredResources(resources, canonicalTask, job.Name, t.path, t.tmpl)
 					if err != nil {
 						return err
 					}
@@ -130,6 +144,7 @@ func testPresenceOfRequiredResources(
 	task *atc.PlanConfig,
 	jobName string,
 	pipelinePath string,
+	tmpl *template.Template,
 ) error {
 	var missing []string
 OUTER:
@@ -148,21 +163,9 @@ OUTER:
 	}
 
 	if len(missing) > 0 {
-		paramsTemplate := `
-  Pipeline:	{{.PipelinePath}}
-  Job:		{{.JobName}}
-  Task:		{{.TaskName}}
-  {{if .Missing }}
-  Missing resources:
-    {{- range .Missing}}
-    {{.}}
-    {{- end}}
-  {{end -}}
-`
-
-		tmpl := template.Must(template.New("resources").Parse(paramsTemplate))
 		buf := &bytes.Buffer{}
-		data := ResourcesData{
+		data := TemplateData{
+			Type:         "resources",
 			PipelinePath: pipelinePath,
 			JobName:      jobName,
 			TaskName:     task.Name(),
@@ -182,6 +185,7 @@ func testParityOfParams(
 	task *atc.PlanConfig,
 	jobName string,
 	pipelinePath string,
+	tmpl *template.Template,
 ) error {
 	var extras, missing []string
 
@@ -198,28 +202,9 @@ func testParityOfParams(
 	}
 
 	if len(missing) > 0 || len(extras) > 0 {
-		paramsTemplate := `
-  Pipeline:	{{.PipelinePath}}
-  Job:		{{.JobName}}
-  Task:		{{.TaskName}}
-  {{if .Extras}}
-  Extra fields that should be removed:
-    {{- range .Extras}}
-    {{.}}
-    {{- end}}
-  {{end -}}
-
-  {{- if .Missing }}
-  Missing fields that should be added:
-    {{- range .Missing}}
-    {{.}}
-    {{- end}}
-  {{end -}}
-`
-
-		tmpl := template.Must(template.New("params").Parse(paramsTemplate))
 		buf := &bytes.Buffer{}
-		data := ParamsData{
+		data := TemplateData{
+			Type:         "params",
 			PipelinePath: pipelinePath,
 			JobName:      jobName,
 			TaskName:     task.Name(),
