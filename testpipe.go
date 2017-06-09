@@ -105,12 +105,6 @@ func (t *TestPipe) Run() error {
 					return err
 				}
 
-				if canonicalTask.TaskConfig.Outputs != nil {
-					for i := range canonicalTask.TaskConfig.Outputs {
-						resources = append(resources, canonicalTask.TaskConfig.Outputs[i].Name)
-					}
-				}
-
 				err = testParityOfParams(canonicalTask, job.Name, t.path, t.tmpl)
 				if err != nil {
 					return err
@@ -122,6 +116,12 @@ func (t *TestPipe) Run() error {
 				}
 
 				tasks = append(tasks, *canonicalTask)
+
+				if canonicalTask.TaskConfig.Outputs != nil {
+					for i := range canonicalTask.TaskConfig.Outputs {
+						resources = append(resources, canonicalTask.TaskConfig.Outputs[i].Name)
+					}
+				}
 
 				for _, v := range canonicalTask.OutputMapping {
 					resources = append(resources, v)
