@@ -29,7 +29,7 @@ mkdir -p $dir/some-resource
 cat > $dir/some-resource/task.yml <<EOF
 ---
 params:
-  baz: quux # <- param that the task usage does not specify
+  baz: # <- param that the task usage does not specify
 EOF
 
 cat > $dir/config.yml <<EOF
