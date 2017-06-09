@@ -339,7 +339,7 @@ jobs:
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("exits successfully", func() {
+		It("exits with error", func() {
 			cmd := exec.Command(cmdPath, "-p", pipelinePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
