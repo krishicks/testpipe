@@ -86,16 +86,9 @@ func (t *TestPipe) Run() error {
 				resources = append(resources, planConfig.Put)
 
 			case planConfig.Task != "":
-				canonicalTask := &planConfig
-
-				if planConfig.TaskConfigPath != "" {
-					var newTask *atc.PlanConfig
-					newTask, err = loadTask(resourceMap, &planConfig)
-					if err != nil {
-						return err
-					}
-
-					canonicalTask = newTask
+				canonicalTask, err := flattenTask(resourceMap, &planConfig)
+				if err != nil {
+					return err
 				}
 
 				if canonicalTask.TaskConfig == nil {
@@ -261,10 +254,14 @@ func flattenedPlan(seq *atc.PlanSequence) []atc.PlanConfig {
 	return flatPlan
 }
 
-func loadTask(
+func flattenTask(
 	resourceMap map[string]string,
 	task *atc.PlanConfig,
 ) (*atc.PlanConfig, error) {
+	if task.TaskConfigPath == "" {
+		return task, nil
+	}
+
 	if len(resourceMap) == 0 {
 		return nil, fmt.Errorf("failed to load %s; no config provided", task.TaskConfigPath)
 	}
