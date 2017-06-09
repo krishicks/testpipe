@@ -219,15 +219,14 @@ func flattenedPlan(seq *atc.PlanSequence) []atc.PlanConfig {
 	var flatPlan []atc.PlanConfig
 
 	for _, planConfig := range *seq {
-		if planConfig.Aggregate != nil {
+		switch {
+		case planConfig.Aggregate != nil:
 			flatPlan = append(flatPlan, flattenedPlan(planConfig.Aggregate)...)
-		}
 
-		if planConfig.Do != nil {
+		case planConfig.Do != nil:
 			flatPlan = append(flatPlan, flattenedPlan(planConfig.Do)...)
-		}
 
-		if planConfig.Get != "" || planConfig.Put != "" || planConfig.Task != "" {
+		case planConfig.Get != "", planConfig.Put != "", planConfig.Task != "":
 			flatPlan = append(flatPlan, planConfig)
 		}
 	}
