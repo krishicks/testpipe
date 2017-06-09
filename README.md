@@ -1,6 +1,11 @@
 # testpipe
 Concourse Pipeline Tester
 
+## Current features
+[x] Ensure parity of params between task config and pipeline config that uses the task
+[x] Ensure that all task inputs are satisfied
+[ ] Ensure no invalid keys are passed to `get` (`params:` is often forgotten and keys on the `get` are silently ignored)
+
 ## Installation
 
 `go get github.com/krishicks/testpipe/cmd/testpipe`
