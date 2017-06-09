@@ -114,10 +114,10 @@ jobs:
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(session).Should(gexec.Exit(1))
-
 			Eventually(session.Err).Should(gbytes.Say("Extra fields that should be removed"))
 			Eventually(session.Err).Should(gbytes.Say("some_other_param"))
+
+			Eventually(session).Should(gexec.Exit(1))
 		})
 	})
 
@@ -141,10 +141,10 @@ jobs:
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(session).Should(gexec.Exit(1))
-
 			Eventually(session.Err).Should(gbytes.Say("Missing fields that should be added"))
 			Eventually(session.Err).Should(gbytes.Say("some_param"))
+
+			Eventually(session).Should(gexec.Exit(1))
 		})
 	})
 })
