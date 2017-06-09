@@ -120,11 +120,9 @@ func (t *TestPipe) Run() error {
 					return err
 				}
 
-				if len(canonicalTask.TaskConfig.Inputs) > 0 {
-					err = testPresenceOfRequiredResources(resources, canonicalTask, job.Name, t.path, t.tmpl)
-					if err != nil {
-						return err
-					}
+				err = testPresenceOfRequiredResources(resources, canonicalTask, job.Name, t.path, t.tmpl)
+				if err != nil {
+					return err
 				}
 
 				tasks = append(tasks, *canonicalTask)
