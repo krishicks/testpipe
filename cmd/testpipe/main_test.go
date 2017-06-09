@@ -234,6 +234,35 @@ jobs:
 		})
 	})
 
+	Context("when the pipeline uses output_mapping", func() {
+		BeforeEach(func() {
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - task: upstream-task
+    output_mapping:
+      some-resource: a-resource
+    config: {}
+  - task: some-task
+    config:
+      inputs:
+      - name: a-resource
+`)
+
+			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits successfully", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+		})
+	})
+
 	Context("when the pipeline defines a task inline", func() {
 		BeforeEach(func() {
 			pipelineConfig := fmt.Sprintf(`---

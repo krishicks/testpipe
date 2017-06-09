@@ -119,6 +119,10 @@ func (t *TestPipe) Run() error {
 				}
 
 				tasks = append(tasks, *canonicalTask)
+
+				for _, v := range canonicalTask.OutputMapping {
+					resources = append(resources, v)
+				}
 			}
 		}
 	}
