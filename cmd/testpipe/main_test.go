@@ -88,6 +88,8 @@ inputs:
 - name: some-resource
 params:
   some_param:
+run:
+  path: some-command
 `
 
 			err = ioutil.WriteFile(taskPath, []byte(taskConfig), os.ModePerm)
@@ -418,6 +420,8 @@ jobs:
     resource: some-resource
   - task: some-task
     file: a-resource/task.yml
+    config:
+      path: some-command
 `)
 
 			err = ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -484,6 +488,30 @@ jobs:
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session.Err).Should(gbytes.Say("failed to find path for task: a-resource/task.yml"))
+
+			Eventually(session).Should(gexec.Exit(1))
+		})
+	})
+
+	Context("when the pipeline defines an empty task", func() {
+		BeforeEach(func() {
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - task: some-task
+`)
+
+			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits with error", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session.Err).Should(gbytes.Say("some-job/some-task is missing a definition"))
 
 			Eventually(session).Should(gexec.Exit(1))
 		})

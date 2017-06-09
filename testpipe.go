@@ -99,10 +99,17 @@ func (t *TestPipe) Run() error {
 						return err
 					}
 
-					canonicalTask, err = t.loadTaskFromPath(path, &planConfig)
+					var newTask *atc.PlanConfig
+					newTask, err = t.loadTaskFromPath(path, &planConfig)
 					if err != nil {
 						return err
 					}
+
+					canonicalTask = newTask
+				}
+
+				if canonicalTask.TaskConfig == nil {
+					return fmt.Errorf("%s/%s is missing a definition", job.Name, canonicalTask.Name())
 				}
 
 				if canonicalTask.TaskConfig.Outputs != nil {
