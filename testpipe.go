@@ -89,18 +89,8 @@ func (t *TestPipe) Run() error {
 				canonicalTask := &planConfig
 
 				if planConfig.TaskConfigPath != "" {
-					if len(resourceMap) == 0 {
-						return fmt.Errorf("failed to load %s; no config provided", planConfig.TaskConfigPath)
-					}
-
-					var path string
-					path, err = taskPath(planConfig.TaskConfigPath, resourceMap)
-					if err != nil {
-						return err
-					}
-
 					var newTask *atc.PlanConfig
-					newTask, err = t.loadTaskFromPath(path, &planConfig)
+					newTask, err = loadTask(resourceMap, &planConfig)
 					if err != nil {
 						return err
 					}
@@ -140,38 +130,6 @@ func (t *TestPipe) Run() error {
 	}
 
 	return nil
-}
-
-func taskPath(
-	taskConfigPath string,
-	resourceMap map[string]string,
-) (string, error) {
-	resourceRoot := strings.Split(taskConfigPath, string(os.PathSeparator))[0]
-
-	if resourcePath, ok := resourceMap[resourceRoot]; ok && resourcePath != "" {
-		path := filepath.Join(resourcePath, strings.Replace(taskConfigPath, resourceRoot, "", -1))
-		return path, nil
-	}
-
-	return "", fmt.Errorf("failed to find path for task: %s", taskConfigPath)
-}
-
-func (t *TestPipe) loadTaskFromPath(path string, task *atc.PlanConfig) (*atc.PlanConfig, error) {
-	bs, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open task at %s", path)
-	}
-
-	var taskConfig atc.TaskConfig
-	err = yaml.Unmarshal(bs, &taskConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	newTask := *task
-	newTask.TaskConfig = &taskConfig
-
-	return &newTask, nil
 }
 
 func (t *TestPipe) testPresenceOfRequiredResources(
@@ -301,4 +259,38 @@ func flattenedPlan(seq *atc.PlanSequence) []atc.PlanConfig {
 	}
 
 	return flatPlan
+}
+
+func loadTask(
+	resourceMap map[string]string,
+	task *atc.PlanConfig,
+) (*atc.PlanConfig, error) {
+	if len(resourceMap) == 0 {
+		return nil, fmt.Errorf("failed to load %s; no config provided", task.TaskConfigPath)
+	}
+
+	resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
+
+	var path string
+	if resourcePath, ok := resourceMap[resourceRoot]; ok && resourcePath != "" {
+		path = filepath.Join(resourcePath, strings.Replace(task.TaskConfigPath, resourceRoot, "", -1))
+	} else {
+		return nil, fmt.Errorf("failed to find path for task: %s", task.TaskConfigPath)
+	}
+
+	bs, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open task at %s", path)
+	}
+
+	var taskConfig atc.TaskConfig
+	err = yaml.Unmarshal(bs, &taskConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	newTask := *task
+	newTask.TaskConfig = &taskConfig
+
+	return &newTask, nil
 }
