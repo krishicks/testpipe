@@ -40,7 +40,9 @@ jobs:
   plan:
   - get: a-resource
   - task: some-task
-    config: {}
+    config:
+      run:
+        path: some-command
 `
 
 		_, err = io.Copy(pipelineFile, strings.NewReader(pipelineConfig))
@@ -134,6 +136,8 @@ jobs:
       - name: a-resource
       params:
         some_param:
+      run:
+        path: some-command
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -162,6 +166,8 @@ jobs:
     config:
       params:
         some_param:
+      run:
+        path: some-command
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -190,6 +196,8 @@ jobs:
     config:
       inputs:
       - name: a-resource
+      run:
+        path: some-command
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -221,6 +229,8 @@ jobs:
     config:
       inputs:
       - name: a-resource
+      run:
+        path: some-command
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -245,11 +255,15 @@ jobs:
   - task: upstream-task
     output_mapping:
       some-resource: a-resource
-    config: {}
+    config:
+      run:
+        path: some-command
   - task: some-task
     config:
       inputs:
       - name: a-resource
+      run:
+        path: some-command
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -280,6 +294,8 @@ jobs:
       - name: a-resource
       params:
         some_param:
+      run:
+        path: some-command
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -305,10 +321,14 @@ jobs:
     config:
       outputs:
       - name: a-resource
+      run:
+        path: some-command
   - task: some-task
     config:
       inputs:
       - name: a-resource
+      run:
+        path: some-command
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -334,10 +354,14 @@ jobs:
     config:
       inputs:
       - name: a-resource
+      run:
+        path: some-command
   - task: some-downstream-task
     config:
       outputs:
       - name: a-resource
+      run:
+        path: some-command
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -419,9 +443,9 @@ jobs:
   - get: a-resource
     resource: some-resource
   - task: some-task
-    file: a-resource/task.yml
     config:
-      path: some-command
+      run:
+        path: some-command
 `)
 
 			err = ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -512,6 +536,33 @@ jobs:
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(session.Err).Should(gbytes.Say("some-job/some-task is missing a definition"))
+
+			Eventually(session).Should(gexec.Exit(1))
+		})
+	})
+
+	Context("when a task has no path to run", func() {
+		BeforeEach(func() {
+			pipelineConfig := fmt.Sprintf(`---
+jobs:
+- name: some-job
+  plan:
+  - task: some-task
+    config:
+      run:
+        path:
+`)
+
+			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits with error", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session.Err).Should(gbytes.Say("some-job/some-task is missing a path"))
 
 			Eventually(session).Should(gexec.Exit(1))
 		})

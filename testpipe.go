@@ -100,15 +100,12 @@ func (t *TestPipe) Run() error {
 				resources = append(resources, planConfig.Put)
 
 			case planConfig.Task != "":
-				canonicalTask, err := flattenTask(resourceMap, &planConfig)
+				canonicalTask, err := flattenTask(resourceMap, &planConfig, job.Name)
 				if err != nil {
 					return err
 				}
 
-				if canonicalTask.TaskConfig == nil {
-					return fmt.Errorf("%s/%s is missing a definition", job.Name, canonicalTask.Name())
-				}
-
+				fmt.Printf("%#v\n", canonicalTask)
 				if canonicalTask.TaskConfig.Outputs != nil {
 					for i := range canonicalTask.TaskConfig.Outputs {
 						resources = append(resources, canonicalTask.TaskConfig.Outputs[i].Name)
@@ -242,37 +239,47 @@ func flattenedPlan(seq *atc.PlanSequence) []atc.PlanConfig {
 func flattenTask(
 	resourceMap map[string]string,
 	task *atc.PlanConfig,
+	jobName string,
 ) (*atc.PlanConfig, error) {
+	var result *atc.PlanConfig
 	if task.TaskConfigPath == "" {
-		return task, nil
-	}
-
-	if len(resourceMap) == 0 {
-		return nil, fmt.Errorf("failed to load %s; no config provided", task.TaskConfigPath)
-	}
-
-	resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
-
-	var path string
-	if resourcePath, ok := resourceMap[resourceRoot]; ok && resourcePath != "" {
-		path = filepath.Join(resourcePath, strings.Replace(task.TaskConfigPath, resourceRoot, "", -1))
+		result = task
 	} else {
-		return nil, fmt.Errorf("failed to find path for task: %s", task.TaskConfigPath)
+		if len(resourceMap) == 0 {
+			return nil, fmt.Errorf("failed to load %s; no config provided", task.TaskConfigPath)
+		}
+
+		resourceRoot := strings.Split(task.TaskConfigPath, string(os.PathSeparator))[0]
+
+		var path string
+		if resourcePath, ok := resourceMap[resourceRoot]; ok && resourcePath != "" {
+			path = filepath.Join(resourcePath, strings.Replace(task.TaskConfigPath, resourceRoot, "", -1))
+		} else {
+			return nil, fmt.Errorf("failed to find path for task: %s", task.TaskConfigPath)
+		}
+
+		bs, err := ioutil.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open task at %s", path)
+		}
+
+		var taskConfig atc.TaskConfig
+		err = yaml.Unmarshal(bs, &taskConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		result = task
+		result.TaskConfig = &taskConfig
 	}
 
-	bs, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open task at %s", path)
+	if result.TaskConfig == nil {
+		return nil, fmt.Errorf("task %s/%s is missing a definition", jobName, task.Name())
 	}
 
-	var taskConfig atc.TaskConfig
-	err = yaml.Unmarshal(bs, &taskConfig)
-	if err != nil {
-		return nil, err
+	if result.TaskConfig.Run.Path == "" {
+		return nil, fmt.Errorf("task %s/%s is missing a path", jobName, task.Name())
 	}
 
-	newTask := *task
-	newTask.TaskConfig = &taskConfig
-
-	return &newTask, nil
+	return result, nil
 }
