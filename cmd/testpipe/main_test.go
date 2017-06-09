@@ -28,38 +28,6 @@ var _ = Describe("Main", func() {
 		tmpDir, err = ioutil.TempDir("", "testpipe")
 		Expect(err).NotTo(HaveOccurred())
 
-		resourcesDir, err := ioutil.TempDir(tmpDir, "resources")
-		Expect(err).NotTo(HaveOccurred())
-
-		someResourceDir := filepath.Join(resourcesDir, "some-resource")
-		err = os.MkdirAll(someResourceDir, os.ModePerm)
-		Expect(err).NotTo(HaveOccurred())
-
-		testpipeConfig := fmt.Sprintf(`---
-resource_map:
-  some-resource: %s`, someResourceDir)
-
-		testpipeConfigFile, err := ioutil.TempFile(tmpDir, "testpipe-config.yml")
-		Expect(err).NotTo(HaveOccurred())
-		defer testpipeConfigFile.Close()
-
-		configFilePath = testpipeConfigFile.Name()
-
-		_, err = io.Copy(testpipeConfigFile, strings.NewReader(testpipeConfig))
-		Expect(err).NotTo(HaveOccurred())
-
-		taskPath := filepath.Join(someResourceDir, "task.yml")
-
-		taskConfig := `---
-inputs:
-- name: a-resource
-params:
-  some_param:
-`
-
-		err = ioutil.WriteFile(taskPath, []byte(taskConfig), os.ModePerm)
-		Expect(err).NotTo(HaveOccurred())
-
 		pipelineFile, err := ioutil.TempFile(tmpDir, "pipeline.yml")
 		Expect(err).NotTo(HaveOccurred())
 		defer pipelineFile.Close()
@@ -72,9 +40,7 @@ jobs:
   plan:
   - get: a-resource
   - task: some-task
-    file: some-resource/task.yml
-    params:
-      some_param: some-value
+    config: {}
 `
 
 		_, err = io.Copy(pipelineFile, strings.NewReader(pipelineConfig))
@@ -86,11 +52,69 @@ jobs:
 	})
 
 	It("exits successfully", func() {
-		cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+		cmd := exec.Command(cmdPath, "-p", pipelinePath)
 		session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(session).Should(gexec.Exit(0))
+	})
+
+	Context("when the pipeline refers to a task which is defined elsewhere", func() {
+		BeforeEach(func() {
+			resourcesDir, err := ioutil.TempDir(tmpDir, "resources")
+			Expect(err).NotTo(HaveOccurred())
+
+			someResourceDir := filepath.Join(resourcesDir, "some-resource")
+			err = os.MkdirAll(someResourceDir, os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+
+			testpipeConfig := fmt.Sprintf(`---
+resource_map:
+  some-resource: %s`, someResourceDir)
+
+			testpipeConfigFile, err := ioutil.TempFile(tmpDir, "testpipe-config.yml")
+			Expect(err).NotTo(HaveOccurred())
+			defer testpipeConfigFile.Close()
+
+			configFilePath = testpipeConfigFile.Name()
+
+			_, err = io.Copy(testpipeConfigFile, strings.NewReader(testpipeConfig))
+			Expect(err).NotTo(HaveOccurred())
+
+			taskPath := filepath.Join(someResourceDir, "task.yml")
+
+			taskConfig := `---
+inputs:
+- name: a-resource
+params:
+  some_param:
+`
+
+			err = ioutil.WriteFile(taskPath, []byte(taskConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+
+			pipelineConfig := `---
+jobs:
+- name: some-job
+  plan:
+  - get: a-resource
+  - task: some-task
+    params:
+      some_param: A
+    file: some-resource/task.yml
+`
+
+			err = ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("exits successfully", func() {
+			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(session).Should(gexec.Exit(0))
+		})
 	})
 
 	Context("when the pipeline specifies params that a task does not require", func() {
@@ -99,12 +123,15 @@ jobs:
 jobs:
 - name: some-job
   plan:
-  - get: a-resource
   - task: some-task
-    file: some-resource/task.yml
     params:
       some_param: A
       some_other_param: B
+    config:
+      inputs:
+      - name: a-resource
+      params:
+        some_param:
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -112,7 +139,7 @@ jobs:
 		})
 
 		It("exits with error", func() {
-			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -129,10 +156,10 @@ jobs:
 jobs:
 - name: some-job
   plan:
-  - get: a-resource
   - task: some-task
-    file: some-resource/task.yml
-    params: {}
+    config:
+      params:
+        some_param:
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -140,7 +167,7 @@ jobs:
 		})
 
 		It("exits with error", func() {
-			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -158,9 +185,9 @@ jobs:
 - name: some-job
   plan:
   - task: some-task
-    file: some-resource/task.yml
-    params:
-      some_param: A
+    config:
+      inputs:
+      - name: a-resource
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -168,7 +195,7 @@ jobs:
 		})
 
 		It("exits with error", func() {
-			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -189,9 +216,9 @@ jobs:
   - task: some-task
     input_mapping:
       a-resource: some-resource
-    file: some-resource/task.yml
-    params:
-      some_param: A
+    config:
+      inputs:
+      - name: a-resource
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -199,7 +226,7 @@ jobs:
 		})
 
 		It("exits successfully", func() {
-			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -229,7 +256,7 @@ jobs:
 		})
 
 		It("exits successfully", func() {
-			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -248,9 +275,9 @@ jobs:
       outputs:
       - name: a-resource
   - task: some-task
-    params:
-      some_param: A
-    file: some-resource/task.yml
+    config:
+      inputs:
+      - name: a-resource
 `)
 
 			err := ioutil.WriteFile(pipelinePath, []byte(pipelineConfig), os.ModePerm)
@@ -258,7 +285,7 @@ jobs:
 		})
 
 		It("exits successfully", func() {
-			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -273,9 +300,9 @@ jobs:
 - name: some-job
   plan:
   - task: some-task
-    params:
-      some_param: A
-    file: some-resource/task.yml
+    config:
+      inputs:
+      - name: a-resource
   - task: some-downstream-task
     config:
       outputs:
@@ -287,7 +314,7 @@ jobs:
 		})
 
 		It("exits with error", func() {
-			cmd := exec.Command(cmdPath, "-p", pipelinePath, "-c", configFilePath)
+			cmd := exec.Command(cmdPath, "-p", pipelinePath)
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
