@@ -282,7 +282,7 @@ func loadTask(
 		return nil, fmt.Errorf("failed to open task at %s", path)
 	}
 
-	var taskConfig atc.LoadTaskConfig
+	var taskConfig atc.TaskConfig
 	err = yaml.Unmarshal(bs, &taskConfig)
 	if err != nil {
 		return nil, err
